@@ -7,6 +7,12 @@ An ongoing (fast prototyping) project to create your own doppelgänger based on 
 
 Inspired by Fujisaki Chihiro, tbf. I thought it would be a fun project, as I really cannot predict my life in the future, and I would like to see how my doppelgänger would react to the world. On the other hand, thank to the super-strong LLM and LoRA, which makes finetuning of LLM with small dataset possible.
 
+## Colab:
+
+Only training Colab is available now: https://colab.research.google.com/drive/1AGndDZLHwN_tj6vSz_0285TlQKpOo5Cj?usp=sharing
+
+The inference Colab will be available soon (as I do not want to use my own old tweets).
+
 ## Sample outputs:
 
     # results after a 2-epoch training, with ~50k tweets, including replies
