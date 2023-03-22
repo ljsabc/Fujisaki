@@ -113,6 +113,10 @@ def get_consent(prompt: str, default_to_yes: bool = False):
     else:
         suffix = " [y/N]"
         default_answer = "no"
+
+    # a temporary hack to make the script work in a non-interactive environment
+    return False
+
     while True:
         user_input = input(prompt + suffix)
         if user_input == "":
