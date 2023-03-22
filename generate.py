@@ -96,11 +96,11 @@ if torch.__version__ >= "2" and sys.platform != "win32":
 def evaluate(
     instruction=None,
     input=None,
-    temperature=0.75,
-    top_p=0.9,
-    top_k=40,
+    temperature=0.55,
+    top_p=1,
+    top_k=125,
     num_beams=1,
-    max_new_tokens=160,
+    max_new_tokens=192,
     **kwargs,
 ):
     prompt = generate_prompt_RLHF(instruction, input)
@@ -109,7 +109,7 @@ def evaluate(
     generation_config = GenerationConfig(
         temperature=temperature,
         top_p=top_p,
-        #top_k=top_k,
+        top_k=top_k,
         num_beams=num_beams,
         do_sample=True,
         **kwargs,

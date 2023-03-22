@@ -21,8 +21,8 @@ from peft import (
 
 # This setup works for 4x 3090.
 # Should have space to improve
-MICRO_BATCH_SIZE = 16
-BATCH_SIZE = 256
+MICRO_BATCH_SIZE = 8
+BATCH_SIZE = 128
 GRADIENT_ACCUMULATION_STEPS = BATCH_SIZE // MICRO_BATCH_SIZE
 EPOCHS = 4            # TODO: under investigation.
 LEARNING_RATE = 3e-4  # TODO: parameter tuning
@@ -177,7 +177,7 @@ trainer = transformers.Trainer(
     args=transformers.TrainingArguments(
         per_device_train_batch_size=MICRO_BATCH_SIZE,
         gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
-        warmup_steps=100,
+        warmup_steps=50,        # should not be too big if we are fine-tuning with larger batches
         num_train_epochs=EPOCHS,
         learning_rate=LEARNING_RATE,
         fp16=True,

@@ -9,7 +9,7 @@ Inspired by Fujisaki Chihiro, tbf. I thought it would be a fun project, as I rea
 
 ## Colab:
 
-Only training Colab is available now: https://colab.research.google.com/drive/1AGndDZLHwN_tj6vSz_0285TlQKpOo5Cj?usp=sharing
+Training Colab is available at: https://colab.research.google.com/drive/1AGndDZLHwN_tj6vSz_0285TlQKpOo5Cj?usp=sharing
 
 The inference Colab will be available soon (as I do not want to use my own old tweets).
 
@@ -23,11 +23,11 @@ The inference Colab will be available soon (as I do not want to use my own old t
     Chihiro: 摸摸摸摸…RT @sodawon: @ljsabc 感觉这东西许多人都不知道，很不爽……
     Chihiro: 别去啊，你就不行了
     Chihiro: 早安~RT @alexandergxm: 早安～
-    Chihiro: RT @xiaoyu520: 咱见一个哪儿估计可以买巨蛋甩的呢……
-    Chihiro: 好吧 我就是想和你一起休闲一会儿
-    Chihiro: 我曾经决定的是要把自己搞得成一个好帅的男的，现在感觉不会是那么好了……
+    Chihiro: 嗯……很多人不是这么认识的吧……
+    Chihiro: 嗯。很多人怀疑我是我是女装男孩子（
+    Chihiro: RT @kid_dude: 刚才看到一个人说，“祝你一生不幸愿，一生不快，一生不痛，一生不怒”。我想，“那你也不幸吧。”
 
-The key idea is to use sampling instead of greedy search, otherwise, the model will just repeat the same sentence over and over again.
+The key idea is to use sampling instead of greedy search, otherwise, the model will just repeat the same sentence over and over again. In practice, using top-k sampling with temerature from 0.4-0.7 generates stable results. You may consider if it's close to your original tweets, or better with some more "creativity".
 
 I will not release this model as it's based on my >6 years of tweets, which is not suitable for public release. However, I will release the model as well as a demo later with my <6 years of tweets instead.
 
@@ -40,6 +40,7 @@ I will not release this model as it's based on my >6 years of tweets, which is n
 - [ ] Hyperparameter tuning (incl. LoRA rank, batch size, learning rate, etc.)
 - [ ] Colab notebook for easy deployment (I believe this code can surely run on T4 as we are expecting much shortened tokens)
 - [ ] Support other datasets (e.g. Reddit, Weibo, etc. Future plan)
+- [ ] Pretrain a Chinese llama first (from somewhere else. Future plan)
 
 ## Installation
 
