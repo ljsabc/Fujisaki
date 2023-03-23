@@ -13,7 +13,7 @@ from transformers import LlamaTokenizer, LlamaForCausalLM, GenerationConfig
 tokenizer = LlamaTokenizer.from_pretrained("decapoda-research/llama-7b-hf")
 
 LOAD_8BIT = False
-BASE_MODEL = "decapoda-research/llama-7b-hf"
+BASE_MODEL = "KBlueLeaf/guanaco-7B-lora-embed"
 LORA_WEIGHTS = sys.argv[1]
 
 if torch.cuda.is_available():
@@ -77,7 +77,7 @@ def generate_prompt_RLHF(instruction, input=None):
         return f"""Below is an instruction that describes a task. Write a response that appropriately completes the request.
 
 ### Instruction:
-{instruction}
+User: {instruction}
 
 ### Response:"""
 
@@ -96,9 +96,9 @@ if torch.__version__ >= "2" and sys.platform != "win32":
 def evaluate(
     instruction=None,
     input=None,
-    temperature=0.55,
+    temperature=0.5,
     top_p=1,
-    top_k=125,
+    top_k=100,
     num_beams=1,
     max_new_tokens=192,
     **kwargs,
@@ -156,7 +156,7 @@ def gradio_inference():
 if __name__ == "__main__":
    print("[Enter] to generate more, Ctrl+C to exit.")
    while True:
-        instruction = "Generate a tweet from the user's twitter archive."
+        instruction = "System: Sample a tweet from the user's history."
         print("Chihiro:", evaluate(instruction))
         input()
 

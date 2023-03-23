@@ -250,6 +250,9 @@ def escape_markdown(input_text: str) -> str:
     Escape markdown control characters from input text so that the text will not break in rendered markdown.
     (Only use on unformatted text parts that do not yet have any markdown control characters added on purpose!)
     """
+    # disable escapes permanently
+    return input_text
+
     characters_to_escape: str = r"\_*[]()~`>#+-=|{}.!"
     output_text: str = ''
     for char in input_text:
@@ -326,8 +329,8 @@ def convert_tweet(tweet, username, media_sources, users: dict, paths: PathConfig
         header_html += f'Replying to <a href="{replying_to_url}">{name_list}</a><br>'
     # escape tweet body for markdown rendering:
     # no need to escape here as it will be tokenized again.
-    # body_markdown = escape_markdown(body_markdown)
-    body_markdown = body_markdown.strip().replace("\n", r"\n")
+    body_markdown = escape_markdown(body_markdown)
+    #body_markdown = body_markdown.strip().replace("\n", r"\n")
     # replace image URLs with image links to local files
     if 'entities' in tweet and 'media' in tweet['entities'] and 'extended_entities' in tweet \
             and 'media' in tweet['extended_entities']:
@@ -343,12 +346,15 @@ def convert_tweet(tweet, username, media_sources, users: dict, paths: PathConfig
                 file_output_media = os.path.join(paths.dir_output_media, archive_media_filename)
                 media_url = rel_url(file_output_media, paths.example_file_output_tweets)
                 markdown += '' if not markdown and body_markdown == escape_markdown(original_url) else '\n\n'
+                #markdown += '' if not markdown and body_markdown == original_url else '\n\n'
                 html += '' if not html and body_html == original_url else '<br>'
                 if os.path.isfile(archive_media_path):
                     # Found a matching image, use this one
                     if not os.path.isfile(file_output_media):
                         shutil.copy(archive_media_path, file_output_media)
-                    markdown += f'![]({media_url})'
+                    #markdown += f'![]({media_url})'
+                    # ignore media at this moment
+                    markdown += '(media)'
                     html += f'<img src="{media_url}"/>'
                     # Save the online location of the best-quality version of this file, for later upgrading if wanted
                     best_quality_url = f'https://pbs.twimg.com/media/{original_filename}:orig'
@@ -365,8 +371,9 @@ def convert_tweet(tweet, username, media_sources, users: dict, paths: PathConfig
                             media_url = rel_url(file_output_media, paths.example_file_output_tweets)
                             if not os.path.isfile(file_output_media):
                                 shutil.copy(archive_media_path, file_output_media)
-                            markdown += f'<video controls><source src="{media_url}">Your browser ' \
-                                        f'does not support the video tag.</video>\n'
+                            #markdown += f'<video controls><source src="{media_url}">Your browser ' \
+                            #            f'does not support the video tag.</video>\n'
+                            markdown += '(video)'
                             html += f'<video controls><source src="{media_url}">Your browser ' \
                                     f'does not support the video tag.</video>\n'
                             # Save the online location of the best-quality version of this file,
@@ -392,9 +399,11 @@ def convert_tweet(tweet, username, media_sources, users: dict, paths: PathConfig
                     else:
                         print(f'Warning: missing local file: {archive_media_path}. Using original link instead: '
                               f'{original_url} (expands to {original_expanded_url})')
-                        markdown += f'![]({original_url})'
+                        #markdown += f'![]({original_url})'
+                        markdown += "(media)"
                         html += f'<a href="{original_url}">{original_url}</a>'
         body_markdown = body_markdown.replace(escape_markdown(original_url), markdown)
+        #body_markdown = body_markdown.replace(original_url, markdown)
         body_html = body_html.replace(original_url, html)
     # make the body a quote
     body_markdown = body_markdown
@@ -630,13 +639,13 @@ def parse_tweets(username, users, html_template, paths: PathConfig):
     with open(md_path, "w") as f:
         # construct a RLHF-like dataset, even though it's not RLHF
         # the json contains two fields: "instruction" and "output"
-        instruction = "Generate a tweet from the user's twitter archive."
+        final = []
+        instruction = "System: Sample a tweet from the user's history."
         input = ""
-        output = []
         for md in final_md:
-            output.append({"instruction": instruction, "input": "", "output": md})
+            final.append({"instruction": instruction, "input": input, "output": md})
 
-        f.write(json.dumps(output, indent=4, ensure_ascii=False))
+        f.write(json.dumps(final, indent=4, ensure_ascii=False))
 
         # Write into *.html files
         # no need, as we gonna output markdowns only

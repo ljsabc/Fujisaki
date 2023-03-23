@@ -90,7 +90,7 @@ You can tune the top-p, top-k, and temperature to generate different tweets. The
 
 On a consumer-grade system with 4x3090 graphics cards, and a tweet dataset of 55,498 Tweets of my own tweets, we can expect a training time of *35mins/epoch*, which means the model can be baked within 1-2 hours, or 6-12hours on Colab. 
 
-A general idea is that the loss should be something above 0.8 if the model converges, more importantly, the hyperparameters should be tuned to achieve the best result.
+A general idea is that the validation loss should be something slightly above 1 if the model converges (much different compared to the English corpus). We are still checking the hyperparameters to see if we can get a better result.
 
 ## Credits
 
@@ -98,4 +98,5 @@ This project is based on the following projects:
 
     tloen/alpaca-lora
     timhutton/twitter-archive-parser
+    HuggingFace: KBlueLeaf/guanaco-7B-lora-embed
     (potentially) twint-fork
