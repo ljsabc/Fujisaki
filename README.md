@@ -81,12 +81,14 @@ Inspired by Fujisaki Chihiro (i.e., Alter Ego). I thought it would be a fun proj
 
 来处理推文存档，稍许等待之后，你会在项目根目录下看到一个`tweets.md`的文件。这个文件包含了你的推文存档中的所有推文，以及相关的信息。为了保护你的隐私，请不要公开该文件。
 
-生成相应的数据之后，我们需要进一步调用ChatGLM的`tokenizer`来生成对应的tokenized数据集。这一步需要一些时间。
+生成相应的数据之后，我们需要进一步调用ChatGLM的`tokenizer`来生成对应的tokenized数据集。这一步需要一些时间。这个原始的版本会过度cache同一个generator导致数据无法更新，我改了一个单文件的版本。
+
+    python ./tokenize_dataset_rows.py --json_path ./tweets.md --save_path tweets.tokens --max_seq_length 128
+
+（可选）使用128个token是因为我的大部份推文，连同instruction一起，也不会超过128个token。如果你的推文较长，可以在生成jsonl之后调用`length.py`输出的数据适当增加`max_seq_length`的数值。
 
     python3 ./cover_alpaca2jsonl.py --data_path tweets.md --save_path tweets.jsonl
-    python ./tokenize_dataset_rows.py --jsonl_path ./tweets.jsonl --save_path tweets.tokens --max_seq_length 128
-
-（可选）使用128个token是因为我的大部份推文，连同instruction一起，也不会超过128个token。如果你的推文较长，可以在生成jsonl之后调用`python length.py`输出的数据适当增加`max_seq_length`的数值。
+    python length.py
 
 
 接下来便可调用`finetune.py`来进行模型训练。根据不同的GPU数量，你可以直接调用
