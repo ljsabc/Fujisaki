@@ -266,17 +266,51 @@ def escape_markdown(input_text: str) -> str:
             output_text = output_text + char
     return output_text
 
+def collect_tweet_references(tweet):
+    if 'tweet' in tweet.keys():
+        tweet = tweet['tweet']
+    tweet_ids = set()
+    in_reply_to = False
+    quote = False
+    retweet = False
+    # Collect quoted tweets
+    if 'entities' in tweet and 'urls' in tweet['entities']:
+        for url in tweet['entities']['urls']:
+            if 'url' in url and 'expanded_url' in url:
+                expanded_url = url['expanded_url']
+                matches = re.match(r'^https://twitter.com/([0-9A-Za-z_]*)/status/(\d+)$', expanded_url)
+                if (matches):
+                    quote = True
+
+    # Collect previous tweets in conversation
+    if 'in_reply_to_status_id_str' in tweet:
+        in_reply_to = True
+
+    # Collect RT retweets
+    if 'full_text' in tweet and tweet['full_text'].startswith('RT @'):
+        retweet = True
+
+    # TODO: really parse the tweet ids into texts
+    # needs to create 3 sets for each type.
+    return in_reply_to, quote, retweet
+
 
 def convert_tweet(tweet, username, media_sources, users: dict, paths: PathConfig):
     """Converts a JSON-format tweet. Returns tuple of timestamp, markdown and HTML."""
     if 'tweet' in tweet.keys():
         tweet = tweet['tweet']
+
+    if not 'created_at' in tweet:
+        # seems to be a bug in archive:
+        return None, None, None, None, None, None, None
+
     timestamp_str = tweet['created_at']
     timestamp = int(round(datetime.datetime.strptime(timestamp_str, '%a %b %d %X %z %Y').timestamp()))
     # Example: Tue Mar 19 14:05:17 +0000 2019
     body_markdown = tweet['full_text']
     body_html = tweet['full_text']
     tweet_id_str = tweet['id_str']
+
     # for old tweets before embedded t.co redirects were added, ensure the links are
     # added to the urls entities list so that we can build correct links later on.
     if 'entities' in tweet and 'media' not in tweet['entities'] and len(tweet['entities'].get("urls", [])) == 0:
@@ -435,7 +469,10 @@ def convert_tweet(tweet, username, media_sources, users: dict, paths: PathConfig
                     if handle is not None:
                         users[mentioned_id] = UserData(user_id=mentioned_id, handle=handle)
 
-    return timestamp, body_markdown, body_html
+    # extract the type of tweet
+    in_reply_to, quote, retweet = collect_tweet_references(tweet)
+
+    return timestamp, body_markdown, body_html, in_reply_to, quote, retweet
 
 
 def find_files_input_tweets(dir_path_input_data):
@@ -608,7 +645,7 @@ def download_larger_media(media_sources, paths: PathConfig):
     print(f'Wrote log to {paths.file_download_log}')
 
 
-def parse_tweets(username, users, html_template, paths: PathConfig):
+def parse_tweets(username, users, html_template, paths: PathConfig, lang):
     """Read tweets from paths.files_input_tweets, write to *.md and *.html.
        Copy the media used to paths.dir_output_media.
        Collect user_id:user_handle mappings for later use, in 'users'.
@@ -619,31 +656,60 @@ def parse_tweets(username, users, html_template, paths: PathConfig):
     for tweets_js_filename in paths.files_input_tweets:
         jsons = read_json_from_js_file(tweets_js_filename)
         for tweet in jsons:
-            tweets.append(convert_tweet(tweet, username, media_sources, users, paths))
+            result = convert_tweet(tweet, username, media_sources, users, paths)
+            if result[0]:
+                # check valid tweet by timestamp
+                tweets.append(result)
     tweets.sort(key=lambda tup: tup[0]) # oldest first
 
     # Group tweets by month
     grouped_tweets = defaultdict(list)
-    for timestamp, md, html in tweets:
+    for timestamp, md, html, in_reply_to, quote, retweet in tweets:
         # Use a (markdown) filename that can be imported into Jekyll: YYYY-MM-DD-your-title-here.md
         dt = datetime.datetime.fromtimestamp(timestamp)
-        grouped_tweets[(dt.year, dt.month)].append((md, html))
+        grouped_tweets[(dt.year, dt.month)].append((md, in_reply_to, quote, retweet))
 
     final_md = []
     for (year, month), content in grouped_tweets.items():
         # Write into *.md files
-        for md, _ in content:
-            final_md.append(md)
+        for md, in_reply_to, quote, retweet in content:
+            final_md.append((md, in_reply_to, quote, retweet))
         #md_path = paths.create_path_for_file_output_tweets(year, month, format="md")
     md_path = "tweets.md"
+
+    
+
     with open(md_path, "w") as f:
         # construct a RLHF-like dataset, even though it's not RLHF
-        # the json contains two fields: "instruction" and "output"
+        
+        # load translated user prompt to conform the guanaco dataset
+        with open("prompt_i18n.json", "r") as p:
+            prompt_i18n = json.load(p)
+                
+        prompt = prompt_i18n[lang]
         final = []
-        instruction = "System: Sample a tweet from the user's history."
-        input = ""
-        for md in final_md:
-            final.append({"instruction": instruction, "input": input, "output": md})
+        for md, in_reply_to, quote, retweet in final_md:
+            reply_indication = "reply to other user"
+            quote_indication = "quote of other's tweet"
+            retweet_indication = "retweet of other's tweet"
+
+            if in_reply_to and quote:
+                instruction = f"System: sample a {reply_indication}, which is also a {quote_indication} from from the user's history."
+                user_input = f"User: {prompt['quote_and_reply']}"
+            elif in_reply_to:
+                instruction = f"System: sample a {reply_indication} from the user's history."
+                user_input = f"User: {prompt['reply']}"
+            elif quote:
+                instruction = f"System: sample a {quote_indication} from the user's history."
+                user_input = f"User: {prompt['quote']}"
+            elif retweet:
+                instruction = f"System: sample a {retweet_indication} from the user's history."
+                user_input = f"User: {prompt['retweet']}"
+            else:
+                instruction = "System: sample an original tweet from the user's history."
+                user_input = f"User: {prompt['original_post']}"
+
+            final.append({"instruction": instruction, "input": user_input, "output": md})
 
         f.write(json.dumps(final, indent=4, ensure_ascii=False))
 
@@ -1348,7 +1414,7 @@ def find_archive():
         print(f'Archive not found at {input_path}')
 
 
-def main():
+def main(lang):
     archive_path = find_archive()
     paths = PathConfig(dir_archive=archive_path)
 
@@ -1384,7 +1450,7 @@ def main():
     if not os.path.isfile(paths.file_tweet_icon):
         shutil.copy('assets/images/favicon.ico', paths.file_tweet_icon)
 
-    media_sources = parse_tweets(username, users, html_template, paths)
+    media_sources = parse_tweets(username, users, html_template, paths, lang)
 
     following_ids = collect_user_ids_from_followings(paths)
     print(f'found {len(following_ids)} user IDs in followings.')
@@ -1448,4 +1514,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(lang=sys.argv[1] if len(sys.argv) > 1 else 'en')

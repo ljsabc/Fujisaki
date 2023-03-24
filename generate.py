@@ -4,6 +4,7 @@ import torch
 from peft import PeftModel
 import transformers
 import gradio as gr
+import json
 
 assert (
     "LlamaTokenizer" in transformers._import_structure["models.llama"]
@@ -13,7 +14,7 @@ from transformers import LlamaTokenizer, LlamaForCausalLM, GenerationConfig
 tokenizer = LlamaTokenizer.from_pretrained("decapoda-research/llama-7b-hf")
 
 LOAD_8BIT = False
-BASE_MODEL = "KBlueLeaf/guanaco-7B-lora-embed"
+BASE_MODEL = "./luotuo_ckpt"
 LORA_WEIGHTS = sys.argv[1]
 
 if torch.cuda.is_available():
@@ -35,7 +36,7 @@ if device == "cuda":
         device_map="auto",
     )
     model = PeftModel.from_pretrained(
-        model,
+       model,
         LORA_WEIGHTS,
         torch_dtype=torch.float16,
     )
@@ -97,10 +98,10 @@ def evaluate(
     instruction=None,
     input=None,
     temperature=0.5,
-    top_p=1,
-    top_k=100,
+    top_p=0.95,
+    top_k=150,
     num_beams=1,
-    max_new_tokens=192,
+    max_new_tokens=224,
     **kwargs,
 ):
     prompt = generate_prompt_RLHF(instruction, input)
@@ -109,7 +110,9 @@ def evaluate(
     generation_config = GenerationConfig(
         temperature=temperature,
         top_p=top_p,
-        top_k=top_k,
+        #top_k=top_k,
+        repetition_penalty=1.1,
+        length_penalty=0.1,
         num_beams=num_beams,
         do_sample=True,
         **kwargs,
@@ -154,9 +157,31 @@ def gradio_inference():
 
 
 if __name__ == "__main__":
-   print("[Enter] to generate more, Ctrl+C to exit.")
-   while True:
-        instruction = "System: Sample a tweet from the user's history."
-        print("Chihiro:", evaluate(instruction))
-        input()
+    print("[Enter] to generate a original tweet, [Q] and [Enter] to generate quote, [R] and [Enter] to generate a reply, Ctrl+C to exit.")
+    reply_indication = "reply to other user"
+    quote_indication = "quote of other's tweet"
+    retweet_indication = "retweet of other's tweet"
+
+    lang = sys.argv[2] if len(sys.argv) > 2 else "en"
+
+    with open("prompt_i18n.json", "r") as p:
+        prompt_i18n = json.load(p)
+                
+    prompt = prompt_i18n[lang]
+
+    while True:
+        p = input()
+        if p == "q" or p == "Q":
+            instruction = f"System: sample a {quote_indication} from the user's history."
+            user_input = f"User: {prompt['quote']}"
+        elif p == "r" or p == "R":
+            instruction = f"System: sample a {reply_indication} from the user's history."
+            user_input = f"User: {prompt['reply']}"
+        else:
+            instruction = "System: sample an original tweet from the user's history."
+            user_input = f"User: {prompt['original_post']}"
+
+        # input is still None at this moment, as we are not supporting interaction
+        print("Chihiro:", evaluate(instruction, user_input))
+        
 

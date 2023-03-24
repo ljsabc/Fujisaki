@@ -20,20 +20,20 @@ from peft import (
 
 
 # This setup works for 4x 3090.
-# Should have space to improve
+# Introducing a much larger model for finetuning
 MICRO_BATCH_SIZE = 16
 BATCH_SIZE = 128
 GRADIENT_ACCUMULATION_STEPS = BATCH_SIZE // MICRO_BATCH_SIZE
-EPOCHS = 3            # TODO: under investigation.
-LEARNING_RATE = 5e-4  # TODO: parameter tuning
+EPOCHS = 5               # TODO: under investigation.
+LEARNING_RATE = 6e-4     # TODO: parameter tuning
 # Twitter archives can use a much lower cutoffs (200 should be enough, even with the instructions)
 # from my data, 90% < 140; 95% < 173; 97.5% < 199; 99% < 226
 # the outlier mainly comes from the expanded links
-CUTOFF_LEN = 200  # Twitter is 280 chars, or 140 chinese chars
-LORA_R = 10
-LORA_ALPHA = 24         # TODO: increase from 16, as for more information in the Chinese
-LORA_DROPOUT = 0.05     # TODO: parameter tuning
-VAL_SET_SIZE = 512  # a slightly reduced val size (why we need this much?)
+CUTOFF_LEN = 224         # Twitter is 280 chars, or 140 chinese chars
+LORA_R = 20
+LORA_ALPHA = 36          # TODO: increase from 16, as for more information in the Chinese
+LORA_DROPOUT = 0.05      # TODO: parameter tuning
+VAL_SET_SIZE = 512       # a slightly reduced val size (why we need this much?)
 TARGET_MODULES = [
     "q_proj",
     "v_proj",
@@ -49,7 +49,7 @@ if ddp:
     GRADIENT_ACCUMULATION_STEPS = GRADIENT_ACCUMULATION_STEPS // world_size
 
 model = LlamaForCausalLM.from_pretrained(
-    "KBlueLeaf/guanaco-7B-lora-embed",
+    "./luotuo_ckpt/",
     load_in_8bit=True,
     device_map=device_map,
 )
@@ -177,7 +177,7 @@ trainer = transformers.Trainer(
     args=transformers.TrainingArguments(
         per_device_train_batch_size=MICRO_BATCH_SIZE,
         gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
-        warmup_steps=75,        # should not be too big if we are fine-tuning with larger batches
+        warmup_steps=50,        # should not be too big if we are fine-tuning with larger batches
         num_train_epochs=EPOCHS,
         learning_rate=LEARNING_RATE,
         fp16=True,

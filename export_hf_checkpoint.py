@@ -5,6 +5,7 @@ import torch
 from peft import PeftModel, LoraConfig
 
 import transformers
+import sys
 
 assert (
     "LlamaTokenizer" in transformers._import_structure["models.llama"]
@@ -25,7 +26,7 @@ first_weight_old = first_weight.clone()
 
 lora_model = PeftModel.from_pretrained(
     base_model,
-    "tloen/alpaca-lora-7b",
+    sys.argv[1],
     device_map={"": "cpu"},
     torch_dtype=torch.float16,
 )
