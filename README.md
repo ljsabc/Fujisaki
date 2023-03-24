@@ -7,120 +7,149 @@ An ongoing (fast prototyping) project to create your own doppelgänger based on 
 
 Inspired by Fujisaki Chihiro (i.e., Alter Ego). I thought it would be a fun project, as I really cannot predict my death in the future, and I would like to see how my doppelgänger would react to the world. Thank to the super-strong LLM and LoRA to make it happen by allowing fine-tuning on small corpora.
 
-On the other hand, this can also be seen as a bootstrapper project to fine-tune a Chinese LLM with a Chinese dataset, as I have adapted some of the code to tailor for Chinese (and probably other languages) synthesis.
+目前项目会以中文内容为主，也希望该项目能帮助到一些使用中文语料库进行清洗、prompt engineering和模型生成的人。
 
 ## How does it work?
 
-By placing your twitter archive in the project root, we parse the archive into a instruction-like JSON dataset. Then, we finetune the LLM with the dataset, and generate tweets with the finetuned model.
+将你的Twitter存档目录解压缩放置在项目根目录下，即可自动处理。相关的程序会根据推文的内容、时间、引用、回复等信息，生成一个instruction风格的JSON数据集。然后，我们将该数据集用于某种中文语言模型的调参，生成新的推文，或启用给予上下文的对话。
 
-For now it cannot generate replies, but it can generate random tweets. 
+目前项目的文字生成能力很优秀，但是对话能力尚仍欠缺。
 
 ## Colab:
 
-Training Colab is available at: https://colab.research.google.com/drive/1AGndDZLHwN_tj6vSz_0285TlQKpOo5Cj?usp=sharing
-
-The inference Colab will be available soon (as I do not want to use my own old tweets).
+稍后为您带来，厨子正在炒菜。
 
 ## Sample outputs:
 
-    # results after a 4-epoch training, with ~50k tweets, original post generation only
+    # 训练的半成品，由~16k条推文生成
 
-    Chihiro: 卧槽我要喝了！
-    Chihiro: 又是这样了……
-    Chihiro: 我是真的有点迷郭了，刚才看到这个就想起来我一直在用猫粮盆上写“维基百科”
-    Chihiro: 我好想买个1080Ti了啊
-    Chihiro: 我妈跟我说这个猫比饼盘猫多了，因为饼盘猫在垃圾桶里不会发现什么东西就听到他的声 音。所以我妈觉得这个猫比饼盘猫好，因为他会哭，那就可以知道他是否在家里。
+    >最近有没有什么突破性的成就？
+    Chihiro:我其实喜欢把没听过的乐队名字念一遍,比如
+    “我可来劲了” “干你娘哦啊!?”
 
-    （我妈还说这个猫比饼盒猫更好，因为饼盒猫会哭，然后又吐）
+    > [ENTER]
+    Chihiro:卧槽,这个图好眼熟......
+    原来我是在给《不能说的秘密》做PV的啊
 
-    Chihiro: 我想做个人博客，但是我不知道我真的能开心着
-    还得说自己的故事了，没有话就没有意义
+    >这游戏真的有毒
+    Chihiro:有大佬能教教我怎么快速获得16GB的内存吗?(
 
-The key idea is to use sampling instead of greedy search. By enabling repetition_penalty, the generated tweets should be at least very close to the original tweets. Then it's up to the transferred knowledge from the base model to "glue" the knowledge with the tweet context.
+    >有哪些令人惊讶的方面？
+    Chihiro:啊哈!
+    我这么好看的女孩子居然被你们喜欢了(绝望
+
+    >有哪些令人惊讶的方面？
+    Chihiro:我是脑残粉
+
+
+
+相对于索引、问答目的的项目，该项目会更大程度上利用Sampling，即相似的上下文也会生成非常不一样的回答。希望这样的生成方法能够提供更高的互动性。
 
 ## To-do List
 
-- [x] Modify the twitter-parser to output your twitter archive into a RLHF-like JSON dataset
+- [x] Modify the twitter-parser to output your twitter archive into a instruction dataset
 - [x] Categorized in-reply-to and quoted tweets for better conditional generation
 - [ ] Allow in-reply-to and quoted tweets to be downloaded, for now it can only generate random tweets/replies/quotes
 - [x] LoRA finetuning with multiple GPUs
 - [ ] Hyperparameter tuning (incl. LoRA rank, batch size, learning rate, etc.)
 - [ ] Colab notebook for easy deployment (I believe this code can surely run on T4 as we are expecting much shortened tokens)
 - [ ] Support other datasets (e.g. Reddit, Weibo, etc. Future plan)
-- [ ] Pretrain a Chinese llama first (Confirmed with @RealJosephus that there will be a better based model)
 
 ## Installation
 
-It's suggested to use the `conda` environment. 
-
-Installing the dependencies:
+推荐使用 `conda` 环境。安装依赖：
 
 ```pip install -r requirements.txt```
 
-Probably, you also need to install cuda toolkits (which should match your GPU card):
+有些时候，你可能要安装cudatoolkit：
 
 ```conda install cudatoolkit=11.3```
 
 ## Data requirements
 
-Download your twitter archive (which is a zip file) and extract it in the project folder, so you should see `Your archive.html` in this project folder. Then, run the twitter-parser.py to parse your twitter archive into a RLHF-like JSON dataset.
+解压缩你的推文存档，放置在项目根目录下，即可自动处理。解压缩之后你应该能在项目根目录里面看到`Your archive.html`这个文件。然后，运行`twitter-parser.py`来解析你的推文存档，生成一个RLHF风格的JSON数据集。
 
-## Training
+同样的，你可以参考`tweets_sample.md`来生成你自己的数据集，或者等待项目更新。
 
-The model is currently based on [Luotuo](https://github.com/LC1332/Chinese-alpaca-lora), but could be easily adapted to other models.
+## 训练
 
-The first step is to extract the twitter archives into a RLHF-like JSON dataset. 
+目前的模型基于[ChatGLM+LoRa](https://github.com/mymusise/ChatGLM-Tuning/)，与[Luotuo](https://github.com/LC1332/Chinese-alpaca-lora)的处理方式较为类似。
 
-```python twitter-parser.py <lang>```
+首先使用
 
-where `<lang>` represents the language you use. By default it's English, but for now you can set it to `zh_hans` to support Simplified Chinese. i18n is welcomed for the prompt generation. 
+    python twitter-parser.py
 
-This code will generate a tweet.json file in the project folder. Do not leak this file to the public if you do not want to, as it contains your personal information.
+来处理推文存档，稍许等待之后，你会在项目根目录下看到一个`tweets.md`的文件。这个文件包含了你的推文存档中的所有推文，以及相关的信息。为了保护你的隐私，请不要公开该文件。
 
-Next, convert the Luotuo weights to a HF checkpoint:
+生成相应的数据之后，我们需要进一步调用ChatGLM的`tokenizer`来生成对应的tokenized数据集。这一步需要一些时间。
 
-    mkdir luotuo
-    cd luotuo 
-    wget https://huggingface.co/silk-road/luotuo-lora-7b-0.3/raw/main/adapter_config.json
-    wget https://huggingface.co/silk-road/luotuo-lora-7b-0.3/resolve/main/adapter_model.bin
-    cd ..
-    python ./export_hf_checkpoint.py ./luotuo
-    mv ./hf_ckpt ./luotuo_ckpt
+    python3 ./cover_alpaca2jsonl.py --data_path tweets.md --save_path tweets.jsonl
+    python ./tokenize_dataset_rows.py --jsonl_path ./tweets.jsonl --save_path tweets.tokens --max_seq_length 128
 
-This will take a little while, and the luotuo checkpoint will be used later as the base model for LoRa. Then, we can start the finetuning process. If you are calling a single GPU, simply run:
+（可选）使用128个token是因为我的大部份推文，连同instruction一起，也不会超过128个token。如果你的推文较长，可以在生成jsonl之后调用`python length.py`输出的数据适当增加`max_seq_length`的数值。
 
-```python finetune.py```
 
-Otherwise call
+接下来便可调用`finetune.py`来进行模型训练。根据不同的GPU数量，你可以直接调用
 
-```python -m torch.distributed.launch --nproc_per_node N finetune.py``` 
+    WORLD_SIZE=4 CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 \
+    --master_port=1234 \
+    finetune.py \
+    --dataset_path tweets.tokens \
+    --lora_rank 8 \
+    --per_device_train_batch_size 2 \
+    --gradient_accumulation_steps 1 \
+    --num_train_epoch 1 \
+    --save_steps 2000 \
+    --save_total_limit 2 \
+    --learning_rate 6e-4 \
+    --fp16 \
+    --remove_unused_columns false \
+    --logging_steps 20 \
+    --output_dir output \
+    --ddp_find_unused_parameters false \
+    --warmup_steps 50
 
-where N is the number of GPUs you are using. [An issue](https://github.com/tloen/alpaca-lora/issues/8) gives a detailed explanation of the distributed training.
+进行多卡训练，或者
 
-The key to success is **overfitting with bigger models** and probably with a longer training time. The lower the training/eval loss you achieve, the better performance you will get. The training epoch is tested with 3, but you can make it shorter if you are running of computation budget. In that case, the learning rate could also help, but I did not test it. Send an issue for reporting your results, or a PR for improving the code.
+    python finetune.py \
+    --dataset_path tweets.tokens \
+    --lora_rank 8 \
+    --per_device_train_batch_size 2 \
+    --gradient_accumulation_steps 1 \
+    --num_train_epoch 1 \
+    --save_steps 2000 \
+    --save_total_limit 2 \
+    --learning_rate 2e-4 \
+    --fp16 \
+    --remove_unused_columns false \
+    --logging_steps 20 \
+    --output_dir output \
+    --warmup_steps 50 
+
+项目的调参还在研究中，目前的参数和[ChatGLM+LoRa](https://github.com/mymusise/ChatGLM-Tuning/)很类似，不过可以根据GPU数量调节学习率。默认的学习率是`2e-5`，如果卡数有富余也许可以倍增。
 
 ## Inference
 
-Simply call the `generate.py` script to generate tweets. More functionality should come in the future. 
+调用 `infer.py` 进行对话。你可以输入任何问题（但是目前没什么用），不过即便什么都不输入也可以生成一个很类似我的推文。
 
-```python3 ./generate.py ./lora-alpaca/```
+```python3 ./infer.py```
 
-Where the path-to-your-model-checkpoint is the path to your model checkpoint, by default, it is `./lora-alpaca/`.
-
-You can tune the top-p, top-k, and temperature to generate different tweets. The given parameters are from my tweets, it could be different.
+可以到文件中调节top-p，top-k和temerature，以便生成更多的样本。
 
 ## Benchmark
 
-On a consumer-grade system with 4x3090 graphics cards, and a tweet dataset of 55,498 Tweets of my own tweets, we can expect a training time of *40mins/epoch*, which means the model can be baked within 1-2 hours, or 6-12hours on Colab. 
-
-A general idea is that the validation loss should be something around 0.7-0.8 if the model converges (with a good corpus).
+在4张3090的配置下面，训练一个16,990条推文的数据集，每一个epoch需要16分钟。训练大概需要2-3个epoch能够达成最佳状态。
 
 ## Credits
 
 This project is based on the following projects:
 
-    tloen/alpaca-lora
+    27182812/ChatGLM-chinese-insturct
     timhutton/twitter-archive-parser
-    LC1332/Chinese-alpaca-lora (I will consider a donation)
+    LC1332/Chinese-alpaca-lora (Donated❤️)
+
+Inspired by the following projects:
+
+    tloen/alpaca-lora
     HuggingFace: KBlueLeaf/guanaco-7B-lora-embed
     (potentially) twint-fork

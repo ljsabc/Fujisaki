@@ -1,210 +1,169 @@
-import os
-import sys
-
+from transformers import TrainingArguments
+from transformers import Trainer, HfArgumentParser
+from transformers import AutoTokenizer
+from modeling_chatglm import ChatGLMForConditionalGeneration
 import torch
 import torch.nn as nn
-import bitsandbytes as bnb
-from datasets import load_dataset
-import transformers
-
-assert (
-    "LlamaTokenizer" in transformers._import_structure["models.llama"]
-), "LLaMA is now in HuggingFace's main branch.\nPlease reinstall it: pip uninstall transformers && pip install git+https://github.com/huggingface/transformers.git"
-from transformers import LlamaForCausalLM, LlamaTokenizer, TrainerCallback
-from peft import (
-    prepare_model_for_int8_training,
-    LoraConfig,
-    get_peft_model,
-    get_peft_model_state_dict,
-)
+from peft import get_peft_model, LoraConfig, TaskType, prepare_model_for_int8_training
+from dataclasses import dataclass, field
+import datasets
+import os
 
 
-# This setup works for 4x 3090.
-# Introducing a much larger model for finetuning
-MICRO_BATCH_SIZE = 16
-BATCH_SIZE = 128
-GRADIENT_ACCUMULATION_STEPS = BATCH_SIZE // MICRO_BATCH_SIZE
-EPOCHS = 5               # TODO: under investigation.
-LEARNING_RATE = 6e-4     # TODO: parameter tuning
-# Twitter archives can use a much lower cutoffs (200 should be enough, even with the instructions)
-# from my data, 90% < 140; 95% < 173; 97.5% < 199; 99% < 226
-# the outlier mainly comes from the expanded links
-CUTOFF_LEN = 224         # Twitter is 280 chars, or 140 chinese chars
-LORA_R = 20
-LORA_ALPHA = 36          # TODO: increase from 16, as for more information in the Chinese
-LORA_DROPOUT = 0.05      # TODO: parameter tuning
-VAL_SET_SIZE = 512       # a slightly reduced val size (why we need this much?)
-TARGET_MODULES = [
-    "q_proj",
-    "v_proj",
-]
-DATA_PATH = "tweets.md"
-OUTPUT_DIR = "lora-alpaca"
-
-device_map = "auto"
-world_size = int(os.environ.get("WORLD_SIZE", 1))
-ddp = world_size != 1
-if ddp:
-    device_map = {"": int(os.environ.get("LOCAL_RANK") or 0)}
-    GRADIENT_ACCUMULATION_STEPS = GRADIENT_ACCUMULATION_STEPS // world_size
-
-model = LlamaForCausalLM.from_pretrained(
-    "./luotuo_ckpt/",
-    load_in_8bit=True,
-    device_map=device_map,
-)
-tokenizer = LlamaTokenizer.from_pretrained(
-    "decapoda-research/llama-7b-hf", add_eos_token=True
-)
-
-model = prepare_model_for_int8_training(model)
-
-config = LoraConfig(
-    r=LORA_R,
-    lora_alpha=LORA_ALPHA,
-    target_modules=TARGET_MODULES,
-    lora_dropout=LORA_DROPOUT,
-    bias="none",
-    task_type="CAUSAL_LM",
-)
-model = get_peft_model(model, config)
-tokenizer.pad_token_id = 0  # unk. we want this to be different from the eos token
-data = load_dataset("json", data_files=DATA_PATH)
+tokenizer = AutoTokenizer.from_pretrained("THUDM/chatglm-6b", trust_remote_code=True)
 
 
-def generate_prompt(data_point):
-    # sorry about the formatting disaster gotta move fast
-    if data_point["input"]:
-        return f"""Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
+@dataclass
+class FinetuneArguments:
+    dataset_path: str = field(default="data/alpaca")
+    model_path: str = field(default="output")
+    lora_rank: int = field(default=8)
 
-### Instruction:
-{data_point["instruction"]}
 
-### Input:
-{data_point["input"]}
+class CastOutputToFloat(nn.Sequential):
+    def forward(self, x):
+        return super().forward(x).to(torch.float32)
 
-### Response:
-{data_point["output"]}"""
+
+def get_masks_and_position_ids(
+    seq, seq_len, context_length, device, gmask=False, position_encoding_2d=True
+):
+    mask_position = (
+        seq_len - 2
+    )  # is equal to `seq.index(mask_token)` or `seq.index(150001)`
+    attention_mask = torch.ones((1, context_length, context_length), device=device)
+    attention_mask.tril_()
+    attention_mask[..., : mask_position - 1] = 1
+    attention_mask = (attention_mask < 0.5).bool()
+
+    if position_encoding_2d:
+        seq_length = seq_len - 1  # is equal to `seq_length = seq.index(150004)`
+        position_ids = torch.arange(context_length, dtype=torch.long, device=device)
+        if not gmask:
+            position_ids[seq_length:] = mask_position
+        block_position_ids = torch.cat(
+            (
+                torch.zeros(seq_length, dtype=torch.long, device=device),
+                torch.arange(
+                    context_length - seq_length, dtype=torch.long, device=device
+                )
+                + 1,
+            )
+        )
+        position_ids = torch.stack((position_ids, block_position_ids), dim=0)
     else:
-        return f"""Below is an instruction that describes a task. Write a response that appropriately completes the request.
+        position_ids = torch.arange(context_length, dtype=torch.long, device=device)
+        if not gmask:
+            position_ids[context_length - 1 :] = mask_position
+    return attention_mask, position_ids
 
-### Instruction:
-System: {data_point["instruction"]}
 
-### Response:
-{data_point["output"]}"""
-
-def tokenize(prompt):
-    # there's probably a way to do this with the tokenizer settings
-    # but again, gotta move fast
-    result = tokenizer(
-        prompt,
-        truncation=True,
-        max_length=CUTOFF_LEN + 1,
-        padding="max_length",
-    )
+def data_collator(features: list) -> dict:
+    len_ids = [len(feature["input_ids"]) for feature in features]
+    longest = max(len_ids)
+    input_ids = []
+    attention_mask_list = []
+    position_ids_list = []
+    labels_list = []
+    for ids_l, feature in sorted(zip(len_ids, features), key=lambda x: -x[0]):
+        ids = feature["input_ids"]
+        seq_len = feature["seq_len"]
+        labels = (
+            [-100] * (seq_len - 1)
+            + ids[(seq_len - 1) :]
+            + [-100] * (longest - ids_l)
+        )
+        ids = ids + [tokenizer.pad_token_id] * (longest - ids_l)
+        _ids = torch.LongTensor(ids)
+        attention_mask, position_ids = get_masks_and_position_ids(
+            ids, seq_len, longest, _ids.device, gmask=False
+        )
+        labels_list.append(torch.LongTensor(labels))
+        input_ids.append(_ids)
+        attention_mask_list.append(attention_mask)
+        position_ids_list.append(position_ids)
+    input_ids = torch.stack(input_ids)
+    labels = torch.stack(labels_list)
+    attention_mask = torch.stack(attention_mask_list)
+    position_ids = torch.stack(position_ids_list)
     return {
-        "input_ids": result["input_ids"][:-1],
-        "attention_mask": result["attention_mask"][:-1],
+        "input_ids": input_ids,
+        "labels": labels,
+        "attention_mask": attention_mask,
+        "position_ids": position_ids,
     }
 
 
-def generate_and_tokenize_prompt(data_point):
-    # This function masks out the labels for the input,
-    # so that our loss is computed only on the response.
-    user_prompt = (
-        (
-            f"""Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
+class ModifiedTrainer(Trainer):
+    def compute_loss(self, model, inputs, return_outputs=False):
+        return model(
+            input_ids=inputs["input_ids"],
+            attention_mask=inputs["attention_mask"],
+            position_ids=inputs["position_ids"],
+            labels=inputs["labels"],
+        ).loss
 
-### Instruction:
-{data_point["instruction"]}
 
-### Input:
-{data_point["input"]}
-
-### Response:
-"""
-        )
-        if data_point["input"]
-        else (
-            f"""Below is an instruction that describes a task. Write a response that appropriately completes the request.
-
-### Instruction:
-{data_point["instruction"]}
-
-### Response:
-"""
-        )
-    )
-    len_user_prompt_tokens = (
-        len(
-            tokenizer(
-                user_prompt,
-                truncation=True,
-                max_length=CUTOFF_LEN + 1,
-            )["input_ids"]
-        )
-        - 1
-    )  # no eos token
-    full_tokens = tokenizer(
-        user_prompt + data_point["output"],
-        truncation=True,
-        max_length=CUTOFF_LEN + 1,
-        padding="max_length",
-    )["input_ids"][:-1]
-    return {
-        "input_ids": full_tokens,
-        "labels": [-100] * len_user_prompt_tokens
-        + full_tokens[len_user_prompt_tokens:],
-        "attention_mask": [1] * (len(full_tokens)),
+def save_tunable_parameters(model, path):
+    saved_params = {
+        k: v.to("cpu") for k, v in model.named_parameters() if v.requires_grad
     }
+    torch.save(saved_params, path)
 
 
-if VAL_SET_SIZE > 0:
-    train_val = data["train"].train_test_split(
-        test_size=VAL_SET_SIZE, shuffle=True, seed=42
+def main():
+    finetune_args, training_args = HfArgumentParser(
+        (FinetuneArguments, TrainingArguments)
+    ).parse_args_into_dataclasses()
+
+
+    device_map = "auto"
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
+    ddp = world_size != 1
+    if ddp:
+        device_map = {"": int(os.environ.get("LOCAL_RANK") or 0)}
+
+    # init model
+    model = ChatGLMForConditionalGeneration.from_pretrained(
+        "THUDM/chatglm-6b", load_in_8bit=True, trust_remote_code=True, device_map=device_map
     )
-    train_data = train_val["train"].shuffle().map(generate_and_tokenize_prompt)
-    val_data = train_val["test"].shuffle().map(generate_and_tokenize_prompt)
-else:
-    train_data = data["train"].shuffle().map(generate_and_tokenize_prompt)
-    val_data = None
+    model = prepare_model_for_int8_training(model)
+    #model.gradient_checkpointing_enable()
+    #model.enable_input_require_grads()
+    model.is_parallelizable = True
+    model.model_parallel = True
+    #model.lm_head = CastOutputToFloat(model.lm_head)
+    model.config.use_cache = (
+        False  # silence the warnings. Please re-enable for inference!
+    )
 
-trainer = transformers.Trainer(
-    model=model,
-    train_dataset=train_data,
-    eval_dataset=val_data,
-    args=transformers.TrainingArguments(
-        per_device_train_batch_size=MICRO_BATCH_SIZE,
-        gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
-        warmup_steps=50,        # should not be too big if we are fine-tuning with larger batches
-        num_train_epochs=EPOCHS,
-        learning_rate=LEARNING_RATE,
-        fp16=True,
-        logging_steps=20,
-        evaluation_strategy="steps" if VAL_SET_SIZE > 0 else "no",
-        save_strategy="steps",
-        eval_steps=100 if VAL_SET_SIZE > 0 else None,
-        save_steps=100,
-        output_dir=OUTPUT_DIR,
-        save_total_limit=3,
-        load_best_model_at_end=True if VAL_SET_SIZE > 0 else False,
-        ddp_find_unused_parameters=False if ddp else None,
-    ),
-    data_collator=transformers.DataCollatorForLanguageModeling(tokenizer, mlm=False),
-)
-model.config.use_cache = False
+    # setup peft
+    peft_config = LoraConfig(
+        task_type=TaskType.CAUSAL_LM,
+        inference_mode=False,
+        r=finetune_args.lora_rank,
+        lora_alpha=32,
+        lora_dropout=0.1,
+    )
+    model = get_peft_model(model, peft_config)
 
-old_state_dict = model.state_dict
-model.state_dict = (
-    lambda self, *_, **__: get_peft_model_state_dict(self, old_state_dict())
-).__get__(model, type(model))
+    # load dataset
+    dataset = datasets.load_from_disk(finetune_args.dataset_path)
 
-if torch.__version__ >= "2" and sys.platform != "win32":
-    model = torch.compile(model)
+    # start train
+    trainer = ModifiedTrainer(
+        model=model,
+        train_dataset=dataset,
+        args=training_args,
+        data_collator=data_collator,
+    )
+    trainer.train()
 
-trainer.train()
+    # save model
+    save_tunable_parameters(
+        model, os.path.join(training_args.output_dir, "chatglm-lora.pt")
+    )
 
-model.save_pretrained(OUTPUT_DIR)
 
-print("\n If there's a warning about missing keys above, please disregard :)")
+if __name__ == "__main__":
+    main()

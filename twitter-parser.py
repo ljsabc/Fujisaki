@@ -32,6 +32,8 @@ import shutil
 import subprocess
 import sys
 import time
+
+from prompt_basic import write_json
 # hot-loaded if needed, see import_module():
 #  imagesize
 #  requests
@@ -676,42 +678,9 @@ def parse_tweets(username, users, html_template, paths: PathConfig, lang):
             final_md.append((md, in_reply_to, quote, retweet))
         #md_path = paths.create_path_for_file_output_tweets(year, month, format="md")
     md_path = "tweets.md"
-
     
-
-    with open(md_path, "w") as f:
-        # construct a RLHF-like dataset, even though it's not RLHF
-        
-        # load translated user prompt to conform the guanaco dataset
-        with open("prompt_i18n.json", "r") as p:
-            prompt_i18n = json.load(p)
-                
-        prompt = prompt_i18n[lang]
-        final = []
-        for md, in_reply_to, quote, retweet in final_md:
-            reply_indication = "reply to other user"
-            quote_indication = "quote of other's tweet"
-            retweet_indication = "retweet of other's tweet"
-
-            if in_reply_to and quote:
-                instruction = f"System: sample a {reply_indication}, which is also a {quote_indication} from from the user's history."
-                user_input = f"User: {prompt['quote_and_reply']}"
-            elif in_reply_to:
-                instruction = f"System: sample a {reply_indication} from the user's history."
-                user_input = f"User: {prompt['reply']}"
-            elif quote:
-                instruction = f"System: sample a {quote_indication} from the user's history."
-                user_input = f"User: {prompt['quote']}"
-            elif retweet:
-                instruction = f"System: sample a {retweet_indication} from the user's history."
-                user_input = f"User: {prompt['retweet']}"
-            else:
-                instruction = "System: sample an original tweet from the user's history."
-                user_input = f"User: {prompt['original_post']}"
-
-            final.append({"instruction": instruction, "input": user_input, "output": md})
-
-        f.write(json.dumps(final, indent=4, ensure_ascii=False))
+    write_json(md_path, final_md, lang)
+    
 
         # Write into *.html files
         # no need, as we gonna output markdowns only
@@ -1514,4 +1483,4 @@ def main(lang):
 
 
 if __name__ == "__main__":
-    main(lang=sys.argv[1] if len(sys.argv) > 1 else 'en')
+    main(lang=sys.argv[1] if len(sys.argv) > 1 else 'zh_hans')
