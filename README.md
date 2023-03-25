@@ -18,6 +18,8 @@ Inspired by Fujisaki Chihiro (i.e., Alter Ego). I thought it would be a fun proj
 
 目前项目的文字生成能力很优秀，问答一般，不过在推文涵盖的范围内能够识别一定的问题。目前还没有对话功能，需要更多的推文数据（threaded in-reply-to）才能实现。
 
+优秀训练数据的生成是本项目的最终目的，目前的实现均在`prompt_basic.py`中，未来会逐步提升数据的质量，甚至会引入OpenAI生成更有价值的增广上下文。
+
 ## Demo:
 
 HuggingFace Hub（慢一点的在线版本，可以直接运行）：[![Run on HuggingFace Hub](https://img.shields.io/badge/Run%20on-Hugging%20Face%20Hub-blue?logo=huggingface)](https://huggingface.co/spaces/ljsabc/Fujisaki)
