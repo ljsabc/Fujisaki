@@ -338,7 +338,8 @@ def convert_tweet(tweet, username, media_sources, users: dict, paths: PathConfig
         for url in tweet['entities']['urls']:
             if 'url' in url and 'expanded_url' in url:
                 expanded_url = url['expanded_url']
-                body_markdown = body_markdown.replace(url['url'], expanded_url)
+                #body_markdown = body_markdown.replace(url['url'], expanded_url)
+                body_markdown = body_markdown.replace(url['url'], '(link)')
                 expanded_url_html = f'<a href="{expanded_url}">{expanded_url}</a>'
                 body_html = body_html.replace(url['url'], expanded_url_html)
     # if the tweet is a reply, construct a header that links the names

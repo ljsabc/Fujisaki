@@ -2,6 +2,8 @@ import json
 import random
 import re
 
+import jieba
+import jieba.posseg as pseg
 
 original_post_prompt = [
 "最近过得怎么样？",
@@ -91,14 +93,15 @@ related_topic_prompt = [
 def cut_sent(text):
     sub_sentences = re.split(r'([\。|\！|\？|\；|\，|\n])', text)
     sub_sentences = [s1 + s2 for s1, s2 in zip(sub_sentences[0::2], sub_sentences[1::2])] + ([sub_sentences[-1]] if len(sub_sentences) % 2 == 1 else [])
-    return [s.replace("\n", "") for s in sub_sentences if (s.strip() != "" and s.strip() != "(media)")]
+    return [s.replace("\n", "") for s in sub_sentences if (s.strip() != "" and s.strip() != "(media)" and s.strip() != "(link)")]
 
 
 
 def write_json(md_path, final_md, lang):
     
-    N_LOOP = 3  # 三回啊、三回
-    
+    N_LOOP = 3              # 三回啊、三回
+    RESPONSE_THRESH = 5     # The response should be at least 5 characters long, to be interesting
+     
     # load translated user prompt to conform the guanaco dataset
     with open("prompt_i18n.json", "r") as p:
         prompt_i18n = json.load(p)
@@ -106,6 +109,12 @@ def write_json(md_path, final_md, lang):
     # construct a instruction dataset    
     prompt = prompt_i18n[lang]
     final = []
+
+    # define post-processing function
+    def checkResponse(response):
+        if len(response.replace("\n","").replace(" ", "").replace("(media)","").replace("(link)", "")) < RESPONSE_THRESH:
+            return False
+        return True
 
     for loop in range(N_LOOP):
         for md, in_reply_to, quote, retweet in final_md:
@@ -136,27 +145,28 @@ def write_json(md_path, final_md, lang):
 
                 # sample a random float from 0-1 to decide the ways of generation
                 rr = random.random()
-                if rr < 0.33:
+                if rr < 0.3:
                     # 30% of the tweets -> sample a random prompt, and concatenate
                     instruction = f"{random.choice(original_post_prompt)}"
                     user_input = f""
-                    final.append({"instruction": instruction, "input": user_input, "output": md})
-                elif rr < 0.66:
-                    # 30% of the tweets -> given a truncated tweet, ask for completion
+                    if checkResponse(md):
+                        final.append({"instruction": instruction, "input": user_input, "output": md})
+                elif rr < 0.5:
+                    # 20% of the tweets -> given a truncated tweet, ask for completion
                     substring = cut_sent(md)
-                    #print(md, substring)
                     if len(substring) > 1:
-                        rr = random.randint(1, len(substring)-1)
-                        #print(rr)
-                        instruction = "".join(substring[0:rr])
                         user_input = f""
-                        final.append({"instruction": instruction, "input": user_input, "output": "".join(substring[rr:])})
+                        rr = random.randint(1, len(substring)-1)
+                        instruction = "".join(substring[0:rr])
+                        if checkResponse(instruction):
+                            final.append({"instruction": instruction, "input": user_input, "output": "".join(substring[rr:])})
                     else:
                         instruction = f"{random.choice(original_post_prompt)}"
                         user_input = f""
                         final.append({"instruction": instruction, "input": user_input, "output": md})
-                elif rr < 0.99:
-                    # 30% of the tweets -> ask for a topic, the topic is mainly based on a substring of this tweet
+                elif rr < 0.95:
+                    # 45% of the tweets -> QA like 
+                    # ask for a topic, the topic is mainly based on a substring of this tweet
                     substring = cut_sent(md)
                     if len(substring) > 1:
                         rr = random.randint(0, len(substring)-1)
@@ -166,14 +176,24 @@ def write_json(md_path, final_md, lang):
                         if topic[-1] in ["，", "。", "！", "？", "；"]:
                             topic = topic[:-1]
 
-                        #topic = topic[random.randint(0, len(topic)-1):random.randint(1, min(5, len(topic)))]
+                        # use jieba to do the word segmentation and pos tagging
+                        tokens = [word for word,flag in pseg.cut(topic) if 'n' in flag] 
+                        if len(tokens) > 0:
+                            topic = random.choice(tokens)
+                        else:
+                            # it's just it.
+                            topic = topic
+
+
                         instruction = random.choice(related_topic_prompt).replace("[AAA]", topic)
                         user_input = f""
-                        final.append({"instruction": instruction, "input": user_input, "output": md})
+                        if checkResponse(md):
+                            final.append({"instruction": instruction, "input": user_input, "output": md})
                     else:
                         instruction = f"{random.choice(original_post_prompt)}"
                         user_input = f""
-                        final.append({"instruction": instruction, "input": user_input, "output": md})
+                        if checkResponse(md):
+                            final.append({"instruction": instruction, "input": user_input, "output": md})
 
                 else:
                     # % of the tweets -> no instructions.

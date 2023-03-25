@@ -125,7 +125,7 @@ def main():
 
     # init model
     model = ChatGLMForConditionalGeneration.from_pretrained(
-        "THUDM/chatglm-6b", load_in_8bit=True, trust_remote_code=True, device_map=device_map
+        "THUDM/chatglm-6b", load_in_8bit=True, device_map=device_map
     )
     model = prepare_model_for_int8_training(model)
     #model.gradient_checkpointing_enable()
@@ -160,9 +160,12 @@ def main():
     trainer.train()
 
     # save model
-    save_tunable_parameters(
-        model, os.path.join(training_args.output_dir, "chatglm-lora.pt")
-    )
+    #save_tunable_parameters(
+    #    model, os.path.join(training_args.output_dir, "chatglm-lora.pt")
+    #)
+
+    # don't just save model, save configs also.
+    model.save_pretrained(training_args.output_dir)
 
 
 if __name__ == "__main__":
