@@ -1,8 +1,8 @@
 # Limit the minimal length of your response
 RESPONSE_THRESH = 6
 # the augmentation factor can be reduced if you enable the parsing of replies
-AUGMENTATION_FACTOR_ORIGINAL = 4
-AUGMENTATION_FACTOR_REPLIES = 3
+AUGMENTATION_FACTOR_ORIGINAL = 3
+AUGMENTATION_FACTOR_REPLIES = 1
 
 PARSE_REPLIES = False
 # If you want to scrape only from cache, set this to True
