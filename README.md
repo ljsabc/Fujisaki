@@ -24,7 +24,7 @@ Inspired by Fujisaki Chihiro (i.e., Alter Ego). I thought it would be a fun proj
 
 HuggingFace Hub（慢一点的在线版本，可以直接运行）：[![Run on HuggingFace Hub](https://img.shields.io/badge/Run%20on-Hugging%20Face%20Hub-blue?logo=huggingface)](https://huggingface.co/spaces/ljsabc/Fujisaki)
 
-Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ljsabc/Fujisaki/blob/main/Fujisaki.ipynb)
+Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ljsabc/Fujisaki/blob/main/Fujisaki_GPU.ipynb)
 
 
 ![Banner](github_assets/banner.png)
@@ -146,7 +146,7 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
     --output_dir output \
     --warmup_steps 50 
 
-项目的调参还在研究中，目前的参数和[ChatGLM+LoRa](https://github.com/mymusise/ChatGLM-Tuning/)很类似，不过可以根据GPU数量调节学习率。默认的学习率是`2e-5`，如果卡数有富余也许可以倍增。LoRA的rank可以根据你希望的模型性能进行调节，默认的8是足够的，你也可以提升到12甚至更高。
+项目的调参还在研究中，目前的参数和[ChatGLM+LoRa](https://github.com/mymusise/ChatGLM-Tuning/)很类似，不过可以根据GPU数量调节学习率。默认的学习率是`2e-5`，如果卡数有富余也许可以倍增。LoRA的rank可以根据你希望的模型性能进行调节，默认的8是足够的，你也可以提升到12甚至更高，经过一定的测试`lora_rank`上到16结果会上升一个大台阶，代价是稍微更长一点的训练和测试时间，但是不会多很多。
 
 训练好的模型会保存在`output`文件夹下，你可以在`output/`中找到对应的模型文件。
 
