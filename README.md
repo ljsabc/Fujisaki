@@ -93,6 +93,8 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
 
 目前的模型基于[ChatGLM+LoRa](https://github.com/mymusise/ChatGLM-Tuning/)，与[Luotuo](https://github.com/LC1332/Chinese-alpaca-lora)的处理方式较为类似。
 
+### 生成训练数据
+
 首先使用
 
     python twitter-parser.py
@@ -108,6 +110,14 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
     python3 ./cover_alpaca2jsonl.py --data_path tweets.md --save_path tweets.jsonl
     python length.py
 
+### 可选项：根据回复推文生成更有互动性的数据集（Beta）
+
+因为推文存档中的推文并不储存上下文信息，所以我们可以通过抓取回复推文来获得原始的上下文信息，来实现非常强的对话功能。这一步需要一些时间，但是只需要运行一次。
+很不幸，抓取网站总是一个很痛苦的事情。你可能需要一个代理池，以及将`chromedriver`的二进制放在项目根目录中（需要你了解[selenium](https://selenium-python.readthedocs.io/)）。你可能还需要一台性能足够强的电脑，以便多线程抓取回复信息。如果你有这样的条件，可以调整`config.py`，将`PARSE_REPLIES = False`改为`PARSE_REPLIES = True`，然后运行`twitter-parser.py`。该部分已经写好。
+
+该方法无法抓取已经被删除的你的，和别人的推文。抓取引用推文的功能也尚在检讨中。
+
+### 训练
 
 接下来便可调用`finetune.py`来进行模型训练。根据不同的GPU数量，你可以直接调用
 

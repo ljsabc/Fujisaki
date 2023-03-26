@@ -5,6 +5,11 @@ import re
 import jieba
 import jieba.posseg as pseg
 
+import numpy as np
+
+from scrape_twitter import process_tweet_ids
+import config
+
 original_post_prompt = [
 "最近过得怎么样？",
 "你这段时间都在忙什么？",
@@ -84,7 +89,6 @@ related_topic_prompt = [
     "你有没有关于[AAA]的趣味事例？",
     "你觉得[AAA]有哪些令人叹为观止的特点？",
     "关于[AAA]，你有什么富有启发性的想法？",
-    "你觉得[AAA]在不同文化背景下的表现如何？",
     "你有没有关于[AAA]的奇特经历？",
     "你觉得[AAA]有哪些吸引人的特质？",
     "关于[AAA]，你有什么令人兴奋的见解？"
@@ -96,28 +100,47 @@ def cut_sent(text):
     return [s.replace("\n", "") for s in sub_sentences if (s.strip() != "" and s.strip() != "(media)" and s.strip() != "(link)")]
 
 
+def findTopic(md):
+    substring = cut_sent(md)
+    if len(substring) > 1:
+        rr = random.randint(0, len(substring)-1)
+        # choose a random substring, maximum length is 5
+        topic = substring[rr]
+        # cut off the last word, if it's a chinese punctuation
+        if topic[-1] in ["，", "。", "！", "？", "；"]:
+            topic = topic[:-1]
+
+        # use jieba to do the word segmentation and pos tagging
+        tokens = [word for word,flag in pseg.cut(topic) if 'n' in flag] 
+        if len(tokens) > 0:
+            topic = random.choice(tokens)
+        else:
+            # it's just it.
+            topic = topic
+
+        instruction = random.choice(related_topic_prompt).replace("[AAA]", topic)
+        return instruction
+    else:
+        return None
+
+
+def checkResponse(response):
+    # check if the user's response is too short. Filter it out. 
+    if len(response.replace("\n","").replace(" ", "").replace("(media)","").replace("(link)", "")) < config.RESPONSE_THRESH:
+        return False
+    return True
 
 def write_json(md_path, final_md, lang):
     
-    N_LOOP = 3              # 三回啊、三回
-    RESPONSE_THRESH = 5     # The response should be at least 5 characters long, to be interesting
-     
-    # load translated user prompt to conform the guanaco dataset
-    with open("prompt_i18n.json", "r") as p:
-        prompt_i18n = json.load(p)
 
     # construct a instruction dataset    
-    prompt = prompt_i18n[lang]
     final = []
 
-    # define post-processing function
-    def checkResponse(response):
-        if len(response.replace("\n","").replace(" ", "").replace("(media)","").replace("(link)", "")) < RESPONSE_THRESH:
-            return False
-        return True
+    # construct a list of tweets to be downloaded to sample the contexts
+    context_tweets = []
 
-    for loop in range(N_LOOP):
-        for md, in_reply_to, quote, retweet in final_md:
+    for loop in range(config.AUGMENTATION_FACTOR_ORIGINAL):
+        for id, md, in_reply_to, quote, retweet in final_md:
 
             # content filter goes here:
             if md.strip() == "(media)":
@@ -128,31 +151,40 @@ def write_json(md_path, final_md, lang):
             retweet_indication = "retweet of other's tweet"
 
             if in_reply_to and quote:
-                instruction = f"System: sample a {reply_indication}, which is also a {quote_indication} from from the user's history."
-                user_input = f"User: {prompt['quote_and_reply']}"
+                # todo: process replies and quotes
+                pass
             elif in_reply_to:
-                instruction = f"System: sample a {reply_indication} from the user's history."
-                user_input = f"User: {prompt['reply']}"
+                # save them into a list; we will download them later
+                context_tweets.append({"id": id, "text": md})
             elif quote:
-                instruction = f"System: sample a {quote_indication} from the user's history."
-                user_input = f"User: {prompt['quote']}"
+                # todo: process quotes
+                pass
             elif retweet:
-                instruction = f"System: sample a {retweet_indication} from the user's history."
-                user_input = f"User: {prompt['retweet']}"
+                # not my tweet, simply discard them
+                pass
             else:
                 # in this version we only care about the original post, 
                 # for faster convergence of the model and simple observation of the overall system
 
                 # sample a random float from 0-1 to decide the ways of generation
+                # sample_range is a probablity accumulative list
+                # [random post, completion, Q&A, rest (direct original post)]
+                if config.PARSE_REPLIES:
+                    # if we parse the replies, we will have more data to sample from
+                    # we do not need to do the completion, and the Q&A part can be inferred from the in-reply-to
+                    # of the original posts, 40% are unconditional (with questions), 10% are completion, 20% are Q&A, 30% are unconditional (with no prompts)
+                    sample_range = [0.4, 0.5, 0.7, 1]
+                else:
+                    sample_range = [0.35, 0.5, 0.95, 1]
                 rr = random.random()
-                if rr < 0.3:
-                    # 30% of the tweets -> sample a random prompt, and concatenate
+                if rr < sample_range[0]:
+                    # sample a random question, and concatenate
                     instruction = f"{random.choice(original_post_prompt)}"
                     user_input = f""
                     if checkResponse(md):
                         final.append({"instruction": instruction, "input": user_input, "output": md})
-                elif rr < 0.5:
-                    # 20% of the tweets -> given a truncated tweet, ask for completion
+                elif rr < sample_range[1]:
+                    # given a truncated tweet, ask for completion
                     substring = cut_sent(md)
                     if len(substring) > 1:
                         user_input = f""
@@ -164,42 +196,91 @@ def write_json(md_path, final_md, lang):
                         instruction = f"{random.choice(original_post_prompt)}"
                         user_input = f""
                         final.append({"instruction": instruction, "input": user_input, "output": md})
-                elif rr < 0.95:
-                    # 45% of the tweets -> QA like 
+                elif rr < sample_range[2]:
+                    # QA like 
                     # ask for a topic, the topic is mainly based on a substring of this tweet
-                    substring = cut_sent(md)
-                    if len(substring) > 1:
-                        rr = random.randint(0, len(substring)-1)
-                        # choose a random substring, maximum length is 5
-                        topic = substring[rr]
-                        # cut off the last word, if it's a chinese punctuation
-                        if topic[-1] in ["，", "。", "！", "？", "；"]:
-                            topic = topic[:-1]
-
-                        # use jieba to do the word segmentation and pos tagging
-                        tokens = [word for word,flag in pseg.cut(topic) if 'n' in flag] 
-                        if len(tokens) > 0:
-                            topic = random.choice(tokens)
-                        else:
-                            # it's just it.
-                            topic = topic
-
-
-                        instruction = random.choice(related_topic_prompt).replace("[AAA]", topic)
+                    instruction = findTopic(md)
+                    if instruction is not None:
                         user_input = f""
                         if checkResponse(md):
                             final.append({"instruction": instruction, "input": user_input, "output": md})
                     else:
+                        #if cannot find a topic
                         instruction = f"{random.choice(original_post_prompt)}"
                         user_input = f""
                         if checkResponse(md):
                             final.append({"instruction": instruction, "input": user_input, "output": md})
 
                 else:
-                    # % of the tweets -> no instructions.
+                    # no instructions, unconditional generation.
                     final.append({"instruction": "", "input": "", "output": md})
 
-        with open(md_path, "w") as f:
-            # shuffle the dataset
-            random.shuffle(final)
-            f.write(json.dumps(final, indent=4, ensure_ascii=False))
+    if config.PARSE_REPLIES:
+        # Now things get even more interesting, we will scrape the tweets from the context_tweet_ids
+        parsed_tweets = process_tweet_ids(context_tweets)
+        print(f"Processed {len(parsed_tweets)} tweets from the context tweets.")
+
+        for l in range(config.AUGMENTATION_FACTOR_REPLIES):
+            for index, t in enumerate(parsed_tweets):
+                #print(index, t)
+                tweet_id = t['id']
+                tweet_text = t['text']
+                context = t['context']
+
+                # first, we need to check if the reply itself is interesting
+                if not checkResponse(tweet_text):
+                    continue
+
+                # then, we need to check if the context is blank
+                if context is None:
+                    continue
+
+                if len(context) == 0:
+                    continue
+                
+                # next, we do a rough check in if the context is interesting
+                # if the context is too short, we will not use it
+                if not checkResponse("".join(context)):
+                    continue
+
+                # We believe the context is interesting
+                # in this way, we want to sample a random context length based on the probability distribution of 1/x
+                # the longer the context, the less likely it will be sampled
+                # if the context's length is not long enough, we will sample again
+                l = len(context)
+                p = []
+                for j in range(l):
+                    p.append(1/float(j+1))
+
+                # normalize the probability
+                p = np.array([i/sum(p) for i in p], dtype=np.float32)
+
+                while True:
+                    # sample a number based on p
+                    r = np.random.choice(l, 1, p=p)[0]
+
+                    # then we will sample the last r tweets from the context
+                    # and concatenate them together
+                    # TODO: prompt engineering from different threads, now it's simply as a \n
+                    context_text = "\n".join(context[-r:])
+                    # check if the context is interesting
+                    if checkResponse(context_text):
+                        break
+
+                # now we have a context, and a reply
+                # go give the prompt
+                final.append({"instruction": context_text, "input": "", "output": tweet_text})
+
+                # but we can do more, we can also augment a Q&A like discussion within the topic, if we want
+                # give a small random chance to do this
+                if random.random() < 0.1:
+                    instruction = findTopic(context[-1])
+                    if instruction is not None:
+                        final.append({"instruction": instruction, "input": "", "output": tweet_text})
+
+                # TODO: any other sort of prompt engineering?
+
+    with open(md_path, "w") as f:
+        # shuffle the dataset
+        random.shuffle(final)
+        f.write(json.dumps(final, indent=4, ensure_ascii=False))

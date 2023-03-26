@@ -475,7 +475,7 @@ def convert_tweet(tweet, username, media_sources, users: dict, paths: PathConfig
     # extract the type of tweet
     in_reply_to, quote, retweet = collect_tweet_references(tweet)
 
-    return timestamp, body_markdown, body_html, in_reply_to, quote, retweet
+    return timestamp, tweet_id_str, body_markdown, body_html, in_reply_to, quote, retweet
 
 
 def find_files_input_tweets(dir_path_input_data):
@@ -667,16 +667,16 @@ def parse_tweets(username, users, html_template, paths: PathConfig, lang):
 
     # Group tweets by month
     grouped_tweets = defaultdict(list)
-    for timestamp, md, html, in_reply_to, quote, retweet in tweets:
+    for timestamp, ids, md, html, in_reply_to, quote, retweet in tweets:
         # Use a (markdown) filename that can be imported into Jekyll: YYYY-MM-DD-your-title-here.md
         dt = datetime.datetime.fromtimestamp(timestamp)
-        grouped_tweets[(dt.year, dt.month)].append((md, in_reply_to, quote, retweet))
+        grouped_tweets[(dt.year, dt.month)].append((ids, md, in_reply_to, quote, retweet))
 
     final_md = []
     for (year, month), content in grouped_tweets.items():
         # Write into *.md files
-        for md, in_reply_to, quote, retweet in content:
-            final_md.append((md, in_reply_to, quote, retweet))
+        for id, md, in_reply_to, quote, retweet in content:
+            final_md.append((id, md, in_reply_to, quote, retweet))
         #md_path = paths.create_path_for_file_output_tweets(year, month, format="md")
     md_path = "tweets.md"
     

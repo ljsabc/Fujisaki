@@ -15,3 +15,11 @@ git+https://github.com/huggingface/peft.git  # 最新版本 >=0.3.0.dev0
 
 # Chinese tokenization
 jieba
+
+# Advanced twitter scraping (beta)
+selenium 
+beautifulsoup4  
+webdriver-manager
+
+# parsing and sampling (should be enabled by default)
+numpy

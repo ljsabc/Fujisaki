@@ -1,3 +1,14 @@
+config.py
+parser-output/
+parser-cache/
+tweet_cache/
+chrome_profile/
+assets/
+data/
+Your archive.html
+.DS_Store
+tweets.md
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
