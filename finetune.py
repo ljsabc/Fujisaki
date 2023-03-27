@@ -127,12 +127,12 @@ def main():
     model = ChatGLMForConditionalGeneration.from_pretrained(
         "THUDM/chatglm-6b", load_in_8bit=True, device_map=device_map
     )
-    model = prepare_model_for_int8_training(model)
+    #model = prepare_model_for_int8_training(model)
     #model.gradient_checkpointing_enable()
-    #model.enable_input_require_grads()
+    model.enable_input_require_grads()
     model.is_parallelizable = True
     model.model_parallel = True
-    #model.lm_head = CastOutputToFloat(model.lm_head)
+    model.lm_head = CastOutputToFloat(model.lm_head)
     model.config.use_cache = (
         False  # silence the warnings. Please re-enable for inference!
     )

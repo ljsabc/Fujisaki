@@ -65,7 +65,7 @@ def parse(element):
 
 def main():
     dataset = datasets.load_dataset("json", data_files=args.json_path)
-    train_data = dataset["train"].shuffle().map(parse)
+    train_data = dataset["train"].shuffle().map(parse, num_proc=4)
     train_data.save_to_disk(args.save_path)
 
     #dataset = datasets.Dataset.from_generator(
