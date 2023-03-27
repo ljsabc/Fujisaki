@@ -83,6 +83,8 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
 
 ```conda install cudatoolkit=11.3```
 
+可以帮助解决bitsandbytes检测不到CUDA runtime的问题。
+
 ## Data requirements
 
 解压缩你的推文存档，放置在项目根目录下，即可自动处理。解压缩之后你应该能在项目根目录里面看到`Your archive.html`这个文件。然后，运行`twitter-parser.py`来解析你的推文存档，生成一个RLHF风格的JSON数据集。
@@ -103,9 +105,9 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
 
 生成相应的数据之后，我们需要进一步调用ChatGLM的`tokenizer`来生成对应的tokenized数据集。这一步需要一些时间。这个原始的版本会过度cache同一个generator导致数据无法更新，我改了一个单文件的版本。
 
-    python ./tokenize_dataset_rows.py --json_path ./tweets.md --save_path tweets.tokens --max_seq_length 128
+    python ./tokenize_dataset_rows.py --json_path ./tweets.md --save_path tweets.tokens --max_seq_length 160
 
-（可选）使用128个token是因为我的大部份推文，连同instruction一起，也不会超过128个token。如果你的推文较长，可以在生成jsonl之后调用`length.py`，根据输出的数据适当增加`max_seq_length`的数值。
+（可选）使用160个token是因为我的大部份推文，连同instruction一起，也不会超过160个token。如果你的推文较长，可以在生成jsonl之后调用`length.py`，根据输出的数据适当增加`max_seq_length`的数值。
 
     python3 ./cover_alpaca2jsonl.py --data_path tweets.md --save_path tweets.jsonl
     python length.py
@@ -131,7 +133,7 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
     --num_train_epoch 1 \
     --save_steps 2000 \
     --save_total_limit 2 \
-    --learning_rate 6e-4 \
+    --learning_rate 4e-4 \
     --fp16 \
     --remove_unused_columns false \
     --logging_steps 20 \
@@ -145,18 +147,18 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
     --dataset_path tweets.tokens \
     --lora_rank 8 \
     --per_device_train_batch_size 2 \
-    --gradient_accumulation_steps 1 \
+    --gradient_accumulation_steps 4 \
     --num_train_epoch 1 \
     --save_steps 2000 \
     --save_total_limit 2 \
-    --learning_rate 2e-4 \
+    --learning_rate 4e-4 \
     --fp16 \
     --remove_unused_columns false \
     --logging_steps 20 \
     --output_dir output \
     --warmup_steps 50 
 
-项目的调参还在研究中，目前的参数和[ChatGLM+LoRa](https://github.com/mymusise/ChatGLM-Tuning/)很类似，不过可以根据GPU数量调节学习率。默认的学习率是`2e-5`，如果卡数有富余也许可以倍增。LoRA的rank可以根据你希望的模型性能进行调节，默认的8是足够的，你也可以提升到12甚至更高，经过一定的测试`lora_rank`上到16结果会上升一个大台阶，代价是稍微更长一点的训练和测试时间，但是不会多很多。
+项目的调参还在研究中，目前的参数和[ChatGLM+LoRa](https://github.com/mymusise/ChatGLM-Tuning/)很类似，不过可以根据GPU数量调节学习率。默认的学习率是`4e-4` （每8个sample，如果loss突增可能还要降一些），请根据batch size和显卡能力自行测试调节。LoRA的rank可以根据你希望的模型性能进行调节，默认的8是足够的，你也可以提升到12甚至更高，经过一定的测试`lora_rank`上到16结果会上升一个台阶，代价是稍微更长一点的训练和测试时间，但是不会多很多。
 
 训练好的模型会保存在`output`文件夹下，你可以在`output/`中找到对应的模型文件。
 
