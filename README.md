@@ -24,40 +24,10 @@ Inspired by Fujisaki Chihiro (i.e., Alter Ego). I thought it would be a fun proj
 
 HuggingFace Hub（慢一点的在线版本，可以直接运行）：[![Run on HuggingFace Hub](https://img.shields.io/badge/Run%20on-Hugging%20Face%20Hub-blue?logo=huggingface)](https://huggingface.co/spaces/ljsabc/Fujisaki)
 
-Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ljsabc/Fujisaki/blob/main/Fujisaki_GPU.ipynb)
+Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ljsabc/Fujisaki/blob/main/Fujisaki_GPU_Stream.ipynb)
 
 
-![Banner](github_assets/banner.png)
-
-## 生成样本:
-
-    # 完整训练后的一些样本
-
-    >你喜欢吃什么？
-    Chihiro:喜欢日本料理。
-
-    > [ENTER]
-    Chihiro:这玩意儿太神奇了
-    今天用安卓版开API授权用到了iPad的用户授权......
-
-    真他妈神奇
-
-    >这游戏真的有毒
-    Chihiro:玩到瓶颈然后一停
-
-    >有哪些令人惊讶的故事？
-    Chihiro:突然觉得自己老了 
-
-    > 你喜欢看F1吗？
-    Chihiro: 回答是:我喜欢
-    ...然而这回答明显是反讽,说我喜欢有什么用啊
-
-    > 你去过北京吗？
-    Chihiro: 我去北京的时候还没有地铁呢
-    后来才通的...
-
-   （结果稍有cherrypicking）
- 
+![Banner](github_assets/banner.png) 
 
 相对于索引、问答目的的项目，该项目会更大程度上利用Sampling，即相似的上下文也会生成非常不一样的回答。希望这样的生成方法能够提供更高的互动性。
 
@@ -70,7 +40,7 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
 - [x] Hyperparameter tuning (incl. LoRA rank, batch size, learning rate, etc.)
 - [ ] Allow in-reply-to and quoted tweets to be downloaded, for now it can only generate random tweets/replies/quotes
 - [ ] Advanced prompt engineering from OpenAI
-- [ ] Colab notebook for easy deployment (I believe this code can surely run on T4 as we are expecting much shortened tokens)
+- [x] Colab notebook for easy deployment (I believe this code can surely run on T4 as we are expecting much shortened tokens)
 - [ ] Support other datasets (e.g. Reddit, Weibo, etc. Future plan)
 
 ## 环境与安装
@@ -105,9 +75,9 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
 
 生成相应的数据之后，我们需要进一步调用ChatGLM的`tokenizer`来生成对应的tokenized数据集。这一步需要一些时间。这个原始的版本会过度cache同一个generator导致数据无法更新，我改了一个单文件的版本。
 
-    python ./tokenize_dataset_rows.py --json_path ./tweets.md --save_path tweets.tokens --max_seq_length 160
+    python ./tokenize_dataset_rows.py --json_path ./tweets.md --save_path tweets.tokens --max_seq_length 240
 
-（可选）使用160个token是因为我的大部份推文，连同instruction一起，也不会超过160个token。如果你的推文较长，可以在生成jsonl之后调用`length.py`，根据输出的数据适当增加`max_seq_length`的数值。
+（可选）使用240个token是因为我的大部份推文，连同instruction一起，也不会超过240个token。如果你的推文较长，可以在生成jsonl之后调用`length.py`，根据输出的数据适当增加`max_seq_length`的数值。
 
     python3 ./cover_alpaca2jsonl.py --data_path tweets.md --save_path tweets.jsonl
     python length.py
@@ -133,7 +103,7 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
     --num_train_epoch 1 \
     --save_steps 2000 \
     --save_total_limit 2 \
-    --learning_rate 4e-4 \
+    --learning_rate 2e-4 \
     --fp16 \
     --remove_unused_columns false \
     --logging_steps 20 \
@@ -141,7 +111,9 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
     --ddp_find_unused_parameters false \
     --warmup_steps 50
 
-进行多卡训练，或者单卡训练：
+进行多卡训练。如果多卡训练报错，
+
+单卡训练：
 
     python finetune.py \
     --dataset_path tweets.tokens \
@@ -151,14 +123,14 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
     --num_train_epoch 1 \
     --save_steps 2000 \
     --save_total_limit 2 \
-    --learning_rate 4e-4 \
+    --learning_rate 2e-4 \
     --fp16 \
     --remove_unused_columns false \
     --logging_steps 20 \
     --output_dir output \
     --warmup_steps 50 
 
-项目的调参还在研究中，目前的参数和[ChatGLM+LoRa](https://github.com/mymusise/ChatGLM-Tuning/)很类似，不过可以根据GPU数量调节学习率。默认的学习率是`4e-4` （每8个sample，如果loss突增可能还要降一些），请根据batch size和显卡能力自行测试调节。LoRA的rank可以根据你希望的模型性能进行调节，默认的8是足够的，你也可以提升到12甚至更高，经过一定的测试`lora_rank`上到16结果会上升一个台阶，代价是稍微更长一点的训练和测试时间，但是不会多很多。
+项目的调参还在研究中，目前的参数和[ChatGLM+LoRa](https://github.com/mymusise/ChatGLM-Tuning/)很类似，不过可以根据GPU数量调节学习率。默认的学习率是`2e-4` （每8个sample，如果loss突增可能还要降一些），请根据batch size和显卡能力自行测试调节。LoRA的rank可以根据你希望的模型性能进行调节，默认的8是足够的，你也可以提升到12甚至更高，经过一定的测试`lora_rank`上到16结果会上升一个台阶，代价是稍微更长一点的训练和测试时间，但是不会多很多。
 
 训练好的模型会保存在`output`文件夹下，你可以在`output/`中找到对应的模型文件。
 
@@ -168,11 +140,11 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
 
 ```python3 ./infer.py <path_to_model>```
 
-可以在该文件中调节top-p，top-k和temerature，以便生成更多的样本。未来应该会有一个gradio demo。
+可以在该文件中调节top-p，top-k和temerature，以便生成更多的样本。可以根据gradio demo的结果适当调节。
 
 ## Benchmark
 
-在4张3090的配置下面，训练一个16,990条推文的数据集，在设定最大长度为128的情况下，每一个epoch需要16分钟。训练大概需要2-3个epoch能够达成最佳状态。
+在1张A100的配置下面，训练一个75,000条推文的数据集，在设定最大长度为240的情况下，每一个epoch需要3小时。训练大概需要2-3个epoch能够达成最佳状态。
 
 ## Credits
 

@@ -217,6 +217,8 @@ def write_json(md_path, final_md, lang):
 
     if config.PARSE_REPLIES:
         # Now things get even more interesting, we will scrape the tweets from the context_tweet_ids
+        context_count = []
+        qa_count = 0
         parsed_tweets = process_tweet_ids(context_tweets)
         print(f"Processed {len(parsed_tweets)} tweets from the context tweets.")
 
@@ -247,10 +249,11 @@ def write_json(md_path, final_md, lang):
                 # in this way, we want to sample a random context length based on the probability distribution of 1/x
                 # the longer the context, the less likely it will be sampled
                 # if the context's length is not long enough, we will sample again
+                '''
                 l = len(context)
                 p = []
                 for j in range(l):
-                    p.append(1/float(j+1))
+                    p.append(np.power(j+1, -config.REPLY_TEMP))
 
                 # normalize the probability
                 p = np.array([i/sum(p) for i in p], dtype=np.float32)
@@ -258,27 +261,31 @@ def write_json(md_path, final_md, lang):
                 while True:
                     # sample a number based on p
                     r = np.random.choice(l, 1, p=p)[0]
-
-                    # then we will sample the last r tweets from the context
-                    # and concatenate them together
-                    # TODO: prompt engineering from different threads, now it's simply as a \n
                     context_text = "\n".join(context[-r:])
                     # check if the context is interesting
                     if checkResponse(context_text):
+                        r_count.append(r)
                         break
+                '''
+                
+                context_count.append(len(context))
 
                 # now we have a context, and a reply
                 # go give the prompt
-                final.append({"instruction": context_text, "input": "", "output": tweet_text})
+                final.append({"instruction": "\n".join(context), "input": "", "output": tweet_text})
 
                 # but we can do more, we can also augment a Q&A like discussion within the topic, if we want
                 # give a small random chance to do this
-                if random.random() < 0.1:
+                if random.random() < 0.05:
                     instruction = findTopic(context[-1])
                     if instruction is not None:
                         final.append({"instruction": instruction, "input": "", "output": tweet_text})
 
-                # TODO: any other sort of prompt engineering?
+        # TODO: any other sort of prompt engineering?
+        # use a counter to see how many replies are used
+        import collections
+        print(collections.Counter(context_count))
+        print(qa_count)
 
     with open(md_path, "w") as f:
         # shuffle the dataset
