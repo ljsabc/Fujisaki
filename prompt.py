@@ -126,7 +126,8 @@ def processReplyTweets(tweets):
 
         # now we have a context, and a reply
         # go give the prompt
-        final.append({"instruction": "\n".join(context), "input": "", "output": tweet_text})
+        # 
+        final.append({"instruction": config.REPLY_DELIMITER.join(context), "input": "", "output": tweet_text})
 
         # but we can do more, we can also augment a Q&A like discussion within the topic, if we want
         # give a small random chance to do this

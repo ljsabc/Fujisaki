@@ -6,6 +6,9 @@ AUGMENTATION_FACTOR_ORIGINAL = 2
 # better just 1, as we are using full context
 AUGMENTATION_FACTOR_REPLIES = 1
 
+# reply delimiter, useful to distniguish the speaker in the context.
+REPLY_DELIMITER = "||"
+
 # 以下都是可选功能，可以根据需要开启
 # More interestingly, let's ask OpenAI to make a question for your tweets
 ENABLE_OPENAI = False
