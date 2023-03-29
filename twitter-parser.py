@@ -33,7 +33,7 @@ import subprocess
 import sys
 import time
 
-from prompt_basic import write_json
+from prompt import write_json
 # hot-loaded if needed, see import_module():
 #  imagesize
 #  requests

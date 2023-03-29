@@ -37,7 +37,7 @@ def get_tweet_info(tweet):
     except:
         pass
 
-    if config.CACHE_ONLY:
+    if config.SCRAPE_CACHE_ONLY:
         return None
 
     driver = get_driver()

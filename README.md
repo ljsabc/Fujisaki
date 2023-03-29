@@ -26,6 +26,8 @@ HuggingFace Hub（慢一点的在线版本，可以直接运行）：[![Run on H
 
 Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ljsabc/Fujisaki/blob/main/Fujisaki_GPU_Stream.ipynb)
 
+将Colab笔记本中的`peft_path`改为你自己训练的模型（可以是一个本地文件夹，或者是一个HuggingFace Repo），就可以复现你自己训练后的版本了。
+
 
 ![Banner](github_assets/banner.png) 
 
@@ -39,9 +41,9 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
 - [x] Basic prompt engineering for original posts
 - [x] Hyperparameter tuning (incl. LoRA rank, batch size, learning rate, etc.)
 - [ ] Allow in-reply-to and quoted tweets to be downloaded, for now it can only generate random tweets/replies/quotes
-- [ ] Advanced prompt engineering from OpenAI
+- [x] Advanced prompt engineering from OpenAI
 - [x] Colab notebook for easy deployment (I believe this code can surely run on T4 as we are expecting much shortened tokens)
-- [ ] Support other datasets (e.g. Reddit, Weibo, etc. Future plan)
+- [ ] Support other datasets (e.g. Reddit, Weibo, etc. Future plan, let's discuss in #2 .)
 
 ## 环境与安装
 
@@ -53,7 +55,7 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
 
 ```conda install cudatoolkit=11.3```
 
-可以帮助解决bitsandbytes检测不到CUDA runtime的问题。
+可以帮助解决bitsandbytes检测不到CUDA runtime的问题。准备好环境之后不要忘记将`config.example.py`重命名为`config.py`，并且修改其中的参数（如有必要）。
 
 ## Data requirements
 
@@ -88,6 +90,10 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
 很不幸，抓取网站总是一个很痛苦的事情。你可能需要一个代理池，以及将`chromedriver`的二进制放在项目根目录中（需要你了解[selenium](https://selenium-python.readthedocs.io/)）。你可能还需要一台性能足够强的电脑，以便多线程抓取回复信息。如果你有这样的条件，可以调整`config.py`，将`PARSE_REPLIES = False`改为`PARSE_REPLIES = True`，然后运行`twitter-parser.py`。该部分已经写好。
 
 该方法无法抓取已经被删除的你的，和别人的推文。抓取引用推文的功能也尚在检讨中。
+
+### 可选项：使用OpenAI根据推文生成问题
+
+调用OpenAI API为你的原创推文生成一个问题，或者前情提要，以提供更顺畅的问答体验。该部分已经写好，需要你使用OpenAI API Key。价格稍显昂贵，每一万条推文需要准备2-3刀的预算。请填写config.py以配置相应内容，并参照`prompt_openai.py`查看实现方式。
 
 ### 训练
 
