@@ -40,9 +40,10 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
 - [x] LoRA finetuning with multiple GPUs
 - [x] Basic prompt engineering for original posts
 - [x] Hyperparameter tuning (incl. LoRA rank, batch size, learning rate, etc.)
-- [ ] Allow in-reply-to and quoted tweets to be downloaded, for now it can only generate random tweets/replies/quotes
+- [x] Allow in-reply-to tweets to be downloaded.
 - [x] Advanced prompt engineering from OpenAI
 - [x] Colab notebook for easy deployment (I believe this code can surely run on T4 as we are expecting much shortened tokens)
+- [ ] Download quoted tweets.
 - [ ] Support other datasets (e.g. Reddit, Weibo, etc. Future plan, let's discuss in #2 .)
 
 ## 环境与安装
@@ -104,45 +105,45 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
     finetune.py \
     --dataset_path tweets.tokens \
     --lora_rank 8 \
-    --per_device_train_batch_size 2 \
+    --per_device_train_batch_size 8 \
     --gradient_accumulation_steps 1 \
-    --num_train_epoch 1 \
+    --num_train_epoch 2 \
     --save_steps 2000 \
     --save_total_limit 2 \
-    --learning_rate 2e-4 \
+    --learning_rate 6e-4 \
     --fp16 \
     --remove_unused_columns false \
-    --logging_steps 20 \
+    --logging_steps 50 \
     --output_dir output \
     --ddp_find_unused_parameters false \
     --warmup_steps 50
 
-进行多卡训练。如果多卡训练报错，
+进行多卡训练。如果多卡训练报错，可能再跑一遍就好了，是一个小的缓存bug。
 
 单卡训练：
 
     python finetune.py \
     --dataset_path tweets.tokens \
     --lora_rank 8 \
-    --per_device_train_batch_size 2 \
-    --gradient_accumulation_steps 4 \
-    --num_train_epoch 1 \
+    --per_device_train_batch_size 8 \
+    --gradient_accumulation_steps 1 \
+    --num_train_epoch 2 \
     --save_steps 2000 \
     --save_total_limit 2 \
     --learning_rate 2e-4 \
     --fp16 \
     --remove_unused_columns false \
-    --logging_steps 20 \
+    --logging_steps 50 \
     --output_dir output \
-    --warmup_steps 50 
+    --warmup_steps 100 
 
-项目的调参还在研究中，目前的参数和[ChatGLM+LoRa](https://github.com/mymusise/ChatGLM-Tuning/)很类似，不过可以根据GPU数量调节学习率。默认的学习率是`2e-4` （每8个sample，如果loss突增可能还要降一些），请根据batch size和显卡能力自行测试调节。LoRA的rank可以根据你希望的模型性能进行调节，默认的8是足够的，你也可以提升到12甚至更高，经过一定的测试`lora_rank`上到16结果会上升一个台阶，代价是稍微更长一点的训练和测试时间，但是不会多很多。
+目前的参数和[ChatGLM+LoRa](https://github.com/mymusise/ChatGLM-Tuning/)很类似，不过可以根据GPU数量调节学习率。默认的学习率是`2e-4` （每8个sample，如果loss突增可能还要降一些），请根据batch size和显卡能力自行测试调节。上游增加了gradient checkpointing之后3090甚至可以用到8的batch size了，体验非常好。LoRA的rank可以根据你希望的模型性能进行调节，默认的8是足够的，你也可以提升到12甚至更高，经过一定的测试`lora_rank`上到16结果会上升一个台阶，代价是稍微更长一点的训练和测试时间，但是不会多很多。
 
 训练好的模型会保存在`output`文件夹下，你可以在`output/`中找到对应的模型文件。
 
 ## 预测（以及互动）
 
-调用 `infer.py` 进行对话。你可以输入任何问题（但是目前没什么用），不过即便什么都不输入也可以生成一个很类似我的推文。
+调用 `infer.py` 进行对话。你可以输入任何问题（因为是推文的原因，输入陈述句的效果比疑问句好），不过即便什么都不输入也可以生成一个很类似我的推文。
 
 ```python3 ./infer.py <path_to_model>```
 
