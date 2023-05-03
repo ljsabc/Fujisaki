@@ -56,6 +56,8 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
 
 ```conda install cudatoolkit=11.3```
 
+如果使用4090需要安装11.8的版本。s
+
 可以帮助解决bitsandbytes检测不到CUDA runtime的问题。准备好环境之后不要忘记将`config.example.py`重命名为`config.py`，并且修改其中的参数（如有必要）。
 
 ## Data requirements

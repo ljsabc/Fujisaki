@@ -9,7 +9,7 @@ import datasets
 import os
 
 
-tokenizer = AutoTokenizer.from_pretrained("THUDM/chatglm-6b", trust_remote_code=True, revision="fdb7a60")
+tokenizer = AutoTokenizer.from_pretrained("THUDM/chatglm-6b", trust_remote_code=True, revision="658202d")
 
 
 @dataclass
@@ -79,7 +79,7 @@ def main():
 
     # init model
     model = AutoModel.from_pretrained(
-        "THUDM/chatglm-6b", load_in_8bit=True, trust_remote_code=True, device_map=device_map,revision="fdb7a60"
+        "THUDM/chatglm-6b", load_in_8bit=True, trust_remote_code=True, device_map=device_map,revision="658202d"
     )
 
     # It's exactly the following. 

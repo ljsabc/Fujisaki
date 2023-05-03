@@ -1,5 +1,5 @@
 # int8
-bitsandbytes==0.37.1
+bitsandbytes==0.38.1
 accelerate==0.17.1
 
 # chatglm
