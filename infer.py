@@ -5,6 +5,7 @@ from transformers import AutoTokenizer, GenerationConfig, AutoModel
 
 torch.set_default_tensor_type(torch.cuda.HalfTensor)
 model = AutoModel.from_pretrained("THUDM/chatglm-6b", trust_remote_code=True, revision="658202d").cuda().half()
+setattr(model, "lm_head_raw", model.lm_head)
 tokenizer = AutoTokenizer.from_pretrained("THUDM/chatglm-6b", trust_remote_code=True, revision="658202d")
 
 from peft import get_peft_model, LoraConfig, TaskType, PeftModel

@@ -113,7 +113,6 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
     --save_steps 2000 \
     --save_total_limit 2 \
     --learning_rate 6e-4 \
-    --fp16 \
     --remove_unused_columns false \
     --logging_steps 50 \
     --output_dir output \
@@ -133,7 +132,6 @@ Colab演示（需要GPU）：[![Open In Colab](https://colab.research.google.com
     --save_steps 2000 \
     --save_total_limit 2 \
     --learning_rate 2e-4 \
-    --fp16 \
     --remove_unused_columns false \
     --logging_steps 50 \
     --output_dir output \
